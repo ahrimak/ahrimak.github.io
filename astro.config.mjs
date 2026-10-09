@@ -8,6 +8,22 @@ import { defineConfig, fontProviders } from 'astro/config';
 export default defineConfig({
 	site: 'https://ahrimak.github.io',
 	integrations: [mdx(), sitemap()],
+	// Shiki はインラインの style 属性を使い CSP と両立しないため、クラスベースの Prism を使う
+	markdown: {
+		syntaxHighlight: 'prism',
+	},
+	security: {
+		csp: {
+			directives: [
+				"default-src 'self'",
+				"img-src 'self' data:",
+				"object-src 'none'",
+				"base-uri 'self'",
+				"form-action 'self'",
+				'upgrade-insecure-requests',
+			],
+		},
+	},
 	fonts: [
 		{
 			provider: fontProviders.local(),
