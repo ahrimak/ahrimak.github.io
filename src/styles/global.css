@@ -27,18 +27,29 @@
 	}
 }
 
+/*
+ * ダークモード。切り替えボタンで選ぶと <html data-theme="dark|light"> が付く。
+ * 選んでいない間 (と JavaScript が無効なとき) は OS の設定に従う
+ */
 @media (prefers-color-scheme: dark) {
-	:root {
-		/* ダーク版ロゴの背景 #0B1020・文字 #F8FAFC・点 #22D3EE に合わせる */
-		--color-bg: #0b1020;
-		--color-surface: #121a2e;
-		--color-ink: #f8fafc;
-		--color-muted: #94a1b8;
-		--color-line: #222c44;
-		--color-accent: #22d3ee;
-		--color-accent-soft: #10283a;
-		color-scheme: dark;
+	:root:not([data-theme='light']) {
+		@apply dark-palette;
 	}
+}
+:root[data-theme='dark'] {
+	@apply dark-palette;
+}
+
+/* ダーク版ロゴの背景 #0B1020・文字 #F8FAFC・点 #22D3EE に合わせる */
+@utility dark-palette {
+	--color-bg: #0b1020;
+	--color-surface: #121a2e;
+	--color-ink: #f8fafc;
+	--color-muted: #94a1b8;
+	--color-line: #222c44;
+	--color-accent: #22d3ee;
+	--color-accent-soft: #10283a;
+	color-scheme: dark;
 }
 
 @layer base {
@@ -162,4 +173,27 @@
 .token.important,
 .token.variable {
 	color: #ffab70;
+}
+
+/* テーマ切り替えボタンのアイコン。今の表示がダークなら太陽、ライトなら月を出す */
+.theme-icon-sun {
+	display: none;
+}
+@media (prefers-color-scheme: dark) {
+	:root:not([data-theme='light']) {
+		.theme-icon-sun {
+			display: block;
+		}
+		.theme-icon-moon {
+			display: none;
+		}
+	}
+}
+:root[data-theme='dark'] {
+	.theme-icon-sun {
+		display: block;
+	}
+	.theme-icon-moon {
+		display: none;
+	}
 }

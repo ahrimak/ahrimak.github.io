@@ -18,12 +18,48 @@ const heading = 'mb-2.5 border-b border-line pb-1.5 font-mono text-[11px] upperc
 
 <aside class="flex flex-col gap-5 md:gap-9">
 	<div class="flex flex-col gap-2">
-		<p class="m-0 font-display text-[26px] font-bold leading-[1.3] tracking-[.06em] md:text-[30px]">
-			<a href="/" class="inline-flex items-center gap-3 text-ink no-underline">
-				<Icon width={36} height={36} aria-hidden="true" class="shrink-0" />
-				{SITE_TITLE}
-			</a>
-		</p>
+		<div class="flex items-center justify-between gap-3">
+			<p class="m-0 font-display text-[26px] font-bold leading-[1.3] tracking-[.06em] md:text-[30px]">
+				<a href="/" class="inline-flex items-center gap-3 text-ink no-underline">
+					<Icon width={36} height={36} aria-hidden="true" class="shrink-0" />
+					{SITE_TITLE}
+				</a>
+			</p>
+			<button
+				type="button"
+				id="theme-toggle"
+				aria-label="ダークモードに切り替える"
+				class="grid size-9 shrink-0 cursor-pointer place-items-center rounded-md border border-line bg-surface text-muted hover:border-accent hover:text-accent"
+			>
+				<!-- ライト表示中は月 (押すとダーク)、ダーク表示中は太陽 (押すとライト) を出す -->
+				<svg
+					class="theme-icon-moon size-[18px]"
+					viewBox="0 0 24 24"
+					fill="none"
+					stroke="currentColor"
+					stroke-width="2"
+					stroke-linecap="round"
+					stroke-linejoin="round"
+					aria-hidden="true"
+				>
+					<path d="M20 14.5A8 8 0 0 1 9.5 4 8 8 0 1 0 20 14.5Z"></path>
+				</svg>
+				<svg
+					class="theme-icon-sun size-[18px]"
+					viewBox="0 0 24 24"
+					fill="none"
+					stroke="currentColor"
+					stroke-width="2"
+					stroke-linecap="round"
+					aria-hidden="true"
+				>
+					<circle cx="12" cy="12" r="4"></circle>
+					<path
+						d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"
+					></path>
+				</svg>
+			</button>
+		</div>
 		<p class="m-0 text-[13px]/[1.7] text-muted">{SITE_DESCRIPTION}</p>
 	</div>
 
@@ -68,3 +104,23 @@ const heading = 'mb-2.5 border-b border-line pb-1.5 font-mono text-[11px] upperc
 		)
 	}
 </aside>
+
+<script>
+	const button = document.getElementById('theme-toggle')!;
+	const root = document.documentElement;
+	const systemDark = matchMedia('(prefers-color-scheme: dark)');
+	const isDark = () => (root.dataset.theme ?? (systemDark.matches ? 'dark' : 'light')) === 'dark';
+	const updateLabel = () =>
+		button.setAttribute('aria-label', isDark() ? 'ライトモードに切り替える' : 'ダークモードに切り替える');
+
+	button.addEventListener('click', () => {
+		const theme = isDark() ? 'light' : 'dark';
+		root.dataset.theme = theme;
+		try {
+			localStorage.setItem('theme', theme);
+		} catch {}
+		updateLabel();
+	});
+	systemDark.addEventListener('change', updateLabel);
+	updateLabel();
+</script>
