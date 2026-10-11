@@ -2,13 +2,14 @@
 
 /* 配色とフォントのトークン。ダークモードでは同じ変数を上書きする */
 @theme {
-	--color-bg: #f3f5f3;
+	/* ロゴの配色に合わせる: 文字色はロゴの #0F172A、アクセントはグラデーション始点の藍 #4F46E5 */
+	--color-bg: #f8fafc;
 	--color-surface: #ffffff;
-	--color-ink: #1d2523;
-	--color-muted: #5d6b67;
-	--color-line: #d6dcd9;
-	--color-accent: #1f5f6b;
-	--color-accent-soft: #e1ecec;
+	--color-ink: #0f172a;
+	--color-muted: #526079;
+	--color-line: #e2e6f0;
+	--color-accent: #4f46e5;
+	--color-accent-soft: #eceefe;
 	--font-display: var(--font-zen-old-mincho);
 	--font-body: var(--font-zen-kaku-gothic-new);
 	--font-mono: var(--font-ibm-plex-mono);
@@ -28,13 +29,14 @@
 
 @media (prefers-color-scheme: dark) {
 	:root {
-		--color-bg: #151a19;
-		--color-surface: #1c2321;
-		--color-ink: #e4ebe8;
-		--color-muted: #9aa9a4;
-		--color-line: #2f3a37;
-		--color-accent: #7fc0c9;
-		--color-accent-soft: #23393b;
+		/* ダーク版ロゴの背景 #0B1020・文字 #F8FAFC・点 #22D3EE に合わせる */
+		--color-bg: #0b1020;
+		--color-surface: #121a2e;
+		--color-ink: #f8fafc;
+		--color-muted: #94a1b8;
+		--color-line: #222c44;
+		--color-accent: #22d3ee;
+		--color-accent-soft: #10283a;
 		color-scheme: dark;
 	}
 }
