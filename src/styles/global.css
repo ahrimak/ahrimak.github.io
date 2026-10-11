@@ -27,6 +27,11 @@
 	}
 }
 
+/* 背景の 3D ロゴ (LogoBackground) の濃さ。本文が読みにくくならないよう薄くする */
+:root {
+	--art-opacity: 0.14;
+}
+
 /*
  * ダークモード。切り替えボタンで選ぶと <html data-theme="dark|light"> が付く。
  * 選んでいない間 (と JavaScript が無効なとき) は OS の設定に従う
@@ -49,6 +54,7 @@
 	--color-line: #222c44;
 	--color-accent: #22d3ee;
 	--color-accent-soft: #10283a;
+	--art-opacity: 0.22;
 	color-scheme: dark;
 }
 
