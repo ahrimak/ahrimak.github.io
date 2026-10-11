@@ -14,19 +14,6 @@ const { post, newer, older } = Astro.props;
 const { title, description, pubDate, updatedDate, heroImage, tags } = post.data;
 const pagerLink = 'max-w-[48%] no-underline hover:underline';
 const pagerLabel = 'block font-mono text-[11px] tracking-[.1em] text-muted';
-// Markdown から生成される本文。要素ごとの見た目は Typography の修飾子で指定する
-const proseClass = [
-	'prose prose-site max-w-none leading-[1.9] prose-a:font-normal prose-a:no-underline',
-	'prose-headings:mt-[2em] prose-headings:mb-[0.6em] prose-headings:font-display prose-headings:font-bold prose-headings:leading-normal',
-	'prose-h2:text-2xl prose-h3:text-xl prose-h4:text-[17px]',
-	'prose-blockquote:border-l-2 prose-blockquote:pl-[18px] prose-blockquote:font-display prose-blockquote:font-normal prose-blockquote:not-italic',
-	'[&_blockquote_p]:before:content-none [&_blockquote_p]:after:content-none',
-	'prose-code:rounded-xs prose-code:bg-accent-soft prose-code:px-1.5 prose-code:py-0.5 prose-code:text-[0.88em] prose-code:font-normal prose-code:before:content-none prose-code:after:content-none',
-	'[&_pre_code]:bg-transparent [&_pre_code]:p-0 [&_pre_code]:text-[length:inherit]',
-	'prose-pre:rounded-md prose-pre:p-5 prose-pre:text-sm/relaxed',
-	'prose-hr:my-10 prose-img:rounded-md',
-	'prose-table:text-sm prose-th:px-2 prose-th:py-1 prose-td:px-2 prose-td:py-1',
-].join(' ');
 ---
 
 <Base title={title} description={description} image={heroImage}>
@@ -58,7 +45,7 @@ const proseClass = [
 			}
 		</header>
 		{heroImage && <Image width={760} height={380} src={heroImage} alt="" class="mb-7 rounded-md" />}
-		<div class={proseClass}>
+		<div class="prose">
 			<slot />
 		</div>
 		<nav
