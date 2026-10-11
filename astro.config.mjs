@@ -4,13 +4,34 @@ import mdx from '@astrojs/mdx';
 import sitemap from '@astrojs/sitemap';
 import tailwindcss from '@tailwindcss/vite';
 import { defineConfig, fontProviders } from 'astro/config';
+import { fileURLToPath } from 'node:url';
+import * as pagefind from 'pagefind';
+
+/** ビルド後の dist から記事の検索用の索引を作り、dist/pagefind/ に書き出す */
+function pagefindIndex() {
+	return {
+		name: 'pagefind-index',
+		hooks: {
+			/** @param {{ dir: URL, logger: import('astro').AstroIntegrationLogger }} options */
+			'astro:build:done': async ({ dir, logger }) => {
+				const { index, errors: createErrors } = await pagefind.createIndex();
+				if (!index) throw new Error(createErrors.join('\n'));
+				const { page_count, errors } = await index.addDirectory({ path: fileURLToPath(dir) });
+				if (errors.length) throw new Error(errors.join('\n'));
+				await index.writeFiles({ outputPath: fileURLToPath(new URL('pagefind/', dir)) });
+				await pagefind.close();
+				logger.info(`${page_count} ページを読み込み、検索用の索引を作りました`);
+			},
+		},
+	};
+}
 
 const JAPANESE_SUBSETS = Array.from({ length: 120 }, (_, i) => `[${i}]`);
 
 // https://astro.build/config
 export default defineConfig({
 	site: 'https://ahrimak.github.io',
-	integrations: [mdx(), sitemap()],
+	integrations: [mdx(), sitemap(), pagefindIndex()],
 	vite: {
 		plugins: [tailwindcss()],
 	},
@@ -28,6 +49,10 @@ export default defineConfig({
 				"form-action 'self'",
 				'upgrade-insecure-requests',
 			],
+			// 検索 (Pagefind) が /pagefind/ のスクリプトを動的に読み込み、WASM を実行するため
+			scriptDirective: {
+				resources: ["'self'", "'wasm-unsafe-eval'"],
+			},
 		},
 	},
 	redirects: {

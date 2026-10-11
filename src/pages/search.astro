@@ -1,0 +1,149 @@
+---
+import Base from '../layouts/Base.astro';
+---
+
+<Base title="検索">
+	<form role="search" class="mb-4" id="search-form">
+		<label for="search-input" class="sr-only">記事を検索</label>
+		<input
+			type="search"
+			id="search-input"
+			name="q"
+			placeholder="キーワードを入力"
+			autocomplete="off"
+			class="w-full rounded-md border border-line bg-surface px-3.5 py-2.5 text-base text-ink placeholder:text-muted focus:border-accent"
+		/>
+	</form>
+	<div class="mb-2 flex min-h-7 flex-wrap items-center justify-between gap-3 text-[13px] text-muted">
+		<h1 class="m-0 text-[13px] font-normal" id="search-status" aria-live="polite">
+			キーワードを入力してください
+		</h1>
+	</div>
+	<ol class="m-0 list-none p-0" id="search-results"></ol>
+
+	<!-- 検索結果の 1 行。見た目は PostList の行に揃える -->
+	<template id="search-result">
+		<li
+			class="grid grid-cols-[minmax(0,1fr)] gap-1 border-t border-line py-[22px] last:border-b md:grid-cols-[7.5em_minmax(0,1fr)] md:gap-6 md:py-7"
+		>
+			<time class="font-mono text-[12.5px]/[1.6] tabular-nums text-muted md:pt-1.5">
+				<b
+					class="mr-1.5 inline text-[13px] font-medium tracking-[.02em] text-ink md:mr-0 md:block md:text-[22px]"
+				></b>
+				<span></span>
+			</time>
+			<div>
+				<h2 class="mb-1.5 font-display text-xl/normal font-bold text-balance md:text-[23px]">
+					<a class="text-ink no-underline hover:text-accent"></a>
+				</h2>
+				<p
+					class="m-0 max-w-[38em] text-muted [&_mark]:rounded-xs [&_mark]:bg-accent-soft [&_mark]:px-0.5 [&_mark]:text-ink"
+				>
+				</p>
+			</div>
+		</li>
+	</template>
+</Base>
+
+<script>
+	import { dateParts } from '../lib/dates';
+
+	interface PagefindResultData {
+		url: string;
+		excerpt: string;
+		meta: { title?: string; date?: string };
+	}
+	interface Pagefind {
+		init(): Promise<void>;
+		debouncedSearch(
+			term: string,
+			options?: object,
+			timeout?: number,
+		): Promise<{ results: { data(): Promise<PagefindResultData> }[] } | null>;
+	}
+
+	const MAX_RESULTS = 20;
+	const form = document.getElementById('search-form') as HTMLFormElement;
+	const input = document.getElementById('search-input') as HTMLInputElement;
+	const status = document.getElementById('search-status')!;
+	const list = document.getElementById('search-results')!;
+	const template = document.getElementById('search-result') as HTMLTemplateElement;
+	const sidebarInput = document.getElementById('sidebar-search') as HTMLInputElement | null;
+
+	async function loadPagefind(): Promise<Pagefind | null> {
+		// 索引はビルド後に dist/pagefind/ へ書き出されるので、Vite には解決させない
+		const path = '/pagefind/pagefind.js';
+		try {
+			const pagefind: Pagefind = await import(/* @vite-ignore */ path);
+			await pagefind.init();
+			return pagefind;
+		} catch {
+			return null;
+		}
+	}
+
+	function renderResult(data: PagefindResultData) {
+		const row = template.content.firstElementChild!.cloneNode(true) as HTMLElement;
+		const time = row.querySelector('time')!;
+		if (data.meta.date) {
+			const date = new Date(data.meta.date);
+			const { y, m, d, wd } = dateParts(date);
+			time.dateTime = data.meta.date;
+			time.querySelector('b')!.textContent = `${m}.${String(d).padStart(2, '0')}`;
+			time.querySelector('span')!.textContent = `${y} (${wd})`;
+		}
+		const link = row.querySelector('a')!;
+		link.href = data.url;
+		link.textContent = data.meta.title ?? data.url;
+		// Pagefind が本文をエスケープし、一致箇所だけを <mark> で囲んだ HTML
+		row.querySelector('p')!.innerHTML = data.excerpt;
+		return row;
+	}
+
+	const pagefindReady = loadPagefind();
+
+	async function search(term: string) {
+		const pagefind = await pagefindReady;
+		if (!pagefind) {
+			status.textContent = '検索の索引がありません（bun run build の後に bun run preview で確認できます）';
+			return;
+		}
+		if (!term) {
+			status.textContent = 'キーワードを入力してください';
+			list.replaceChildren();
+			return;
+		}
+		const response = await pagefind.debouncedSearch(term, {}, 200);
+		// null は、待っている間に新しい入力があって取り消されたことを表す
+		if (!response) return;
+		const total = response.results.length;
+		const results = await Promise.all(response.results.slice(0, MAX_RESULTS).map((r) => r.data()));
+		if (input.value.trim() !== term) return;
+		list.replaceChildren(...results.map(renderResult));
+		status.textContent =
+			total === 0
+				? `「${term}」に一致する記事はありません`
+				: total > MAX_RESULTS
+					? `「${term}」の検索結果 ${total}件（上位${MAX_RESULTS}件を表示）`
+					: `「${term}」の検索結果 ${total}件`;
+	}
+
+	function update() {
+		const term = input.value.trim();
+		const url = new URL(location.href);
+		if (term) url.searchParams.set('q', term);
+		else url.searchParams.delete('q');
+		history.replaceState(null, '', url);
+		if (sidebarInput) sidebarInput.value = term;
+		search(term);
+	}
+
+	input.addEventListener('input', update);
+	form.addEventListener('submit', (event) => {
+		event.preventDefault();
+		update();
+	});
+
+	input.value = new URLSearchParams(location.search).get('q') ?? '';
+	update();
+</script>
