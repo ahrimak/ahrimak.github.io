@@ -63,16 +63,19 @@ const heading = 'mb-2.5 border-b border-line pb-1.5 font-mono text-[11px] upperc
 		<p class="m-0 text-[13px]/[1.7] text-muted">{SITE_DESCRIPTION}</p>
 	</div>
 
-	<form action="/search/" role="search">
-		<label for="sidebar-search" class="sr-only">記事を検索</label>
-		<input
-			type="search"
-			id="sidebar-search"
-			name="q"
-			placeholder="記事を検索"
-			class="w-full rounded-md border border-line bg-surface px-3 py-1.5 text-sm text-ink placeholder:text-muted focus:border-accent"
-		/>
-	</form>
+	<div>
+		<form action="/search/" role="search">
+			<label for="sidebar-search" class="sr-only">記事を検索</label>
+			<input
+				type="search"
+				id="sidebar-search"
+				name="q"
+				placeholder="記事を検索"
+				class="w-full rounded-md border border-line bg-surface px-3 py-1.5 text-sm text-ink placeholder:text-muted focus:border-accent"
+			/>
+		</form>
+		<a href="/graph/" class="mt-2 inline-block text-[13px] no-underline hover:underline">記事の関連グラフ →</a>
+	</div>
 
 	{
 		months.length > 0 && (
