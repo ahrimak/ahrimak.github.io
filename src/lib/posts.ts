@@ -1,28 +1,15 @@
 import { type CollectionEntry, getCollection } from 'astro:content';
+import { dateParts } from './dates';
+
+export { dateParts };
 
 export type Post = CollectionEntry<'blog'>;
-
-// ビルド環境のタイムゾーンに左右されないよう、日付はすべて日本時間で扱う
-const TIME_ZONE = 'Asia/Tokyo';
 
 /** 新しい順に並べた全記事 */
 export async function getPosts(): Promise<Post[]> {
 	return (await getCollection('blog')).sort(
 		(a, b) => b.data.pubDate.valueOf() - a.data.pubDate.valueOf(),
 	);
-}
-
-export function dateParts(date: Date) {
-	const parts = new Intl.DateTimeFormat('ja-JP', {
-		timeZone: TIME_ZONE,
-		year: 'numeric',
-		month: 'numeric',
-		day: 'numeric',
-		weekday: 'short',
-	}).formatToParts(date);
-	const get = (type: Intl.DateTimeFormatPartTypes) =>
-		parts.find((p) => p.type === type)?.value ?? '';
-	return { y: get('year'), m: Number(get('month')), d: Number(get('day')), wd: get('weekday') };
 }
 
 /** 例: 2026年10月8日（木） */
