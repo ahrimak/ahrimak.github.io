@@ -1,0 +1,70 @@
+---
+import Icon from '../assets/ahrimak-icon.svg';
+import { SITE_DESCRIPTION, SITE_TITLE } from '../consts';
+import { allTags, archiveMonths, getPosts, monthLabel, monthUrl } from '../lib/posts';
+import TagLink from './TagLink.astro';
+
+interface Props {
+	currentTag?: string;
+	currentMonth?: string;
+}
+
+const { currentTag, currentMonth } = Astro.props;
+const posts = await getPosts();
+const months = archiveMonths(posts);
+const tags = allTags(posts);
+const heading = 'mb-2.5 border-b border-line pb-1.5 font-mono text-[11px] uppercase tracking-[.14em] text-muted';
+---
+
+<aside class="flex flex-col gap-5 md:gap-9">
+	<div class="flex flex-col gap-2">
+		<p class="m-0 font-display text-[26px] font-bold leading-[1.3] tracking-[.06em] md:text-[30px]">
+			<a href="/" class="inline-flex items-center gap-3 text-ink no-underline">
+				<Icon width={36} height={36} aria-hidden="true" class="shrink-0" />
+				{SITE_TITLE}
+			</a>
+		</p>
+		<p class="m-0 text-[13px]/[1.7] text-muted">{SITE_DESCRIPTION}</p>
+	</div>
+
+	{
+		months.length > 0 && (
+			<nav aria-label="アーカイブ">
+				<h2 class={heading}>Archive</h2>
+				<ul class="flex flex-wrap gap-x-4 gap-y-1 text-sm md:flex-col md:gap-0.5">
+					{months.map(([key, n]) => {
+						const active = key === currentMonth;
+						return (
+							<li>
+								<a
+									href={active ? '/' : monthUrl(key)}
+									aria-current={active ? 'page' : undefined}
+									class:list={[
+										'flex items-baseline justify-between gap-1.5 py-0.5 no-underline hover:text-accent',
+										active ? 'font-bold text-accent' : 'text-ink',
+									]}
+								>
+									{monthLabel(key)}
+									<span class="font-mono text-xs font-normal tabular-nums text-muted">{n}</span>
+								</a>
+							</li>
+						);
+					})}
+				</ul>
+			</nav>
+		)
+	}
+
+	{
+		tags.length > 0 && (
+			<nav aria-label="タグ">
+				<h2 class={heading}>Tags</h2>
+				<div class="flex flex-wrap gap-1.5">
+					{tags.map((tag) => (
+						<TagLink tag={tag} current={currentTag} />
+					))}
+				</div>
+			</nav>
+		)
+	}
+</aside>

@@ -1,0 +1,54 @@
+---
+import { dateParts, type Post, postUrl, readMinutes } from '../lib/posts';
+import TagLink from './TagLink.astro';
+
+interface Props {
+	posts: Post[];
+	/** 絞り込み中の条件の表示名。例: タグ「日々」 */
+	label?: string;
+	currentTag?: string;
+}
+
+const { posts, label, currentTag } = Astro.props;
+---
+
+<div class="mb-2 flex min-h-7 flex-wrap items-center justify-between gap-3 text-[13px] text-muted">
+	<h1 class="m-0 text-[13px] font-normal">
+		{label ? `${label} の記事 ${posts.length}件` : `最新の記事 ${posts.length}件`}
+	</h1>
+	{label && <a href="/">すべて表示</a>}
+</div>
+<ol class="m-0 list-none p-0">
+	{
+		posts.map((post) => {
+			const { y, m, d, wd } = dateParts(post.data.pubDate);
+			return (
+				<li class="grid grid-cols-[minmax(0,1fr)] gap-1 border-t border-line py-[22px] last:border-b md:grid-cols-[7.5em_minmax(0,1fr)] md:gap-6 md:py-7">
+					<time
+						datetime={post.data.pubDate.toISOString()}
+						class="font-mono text-[12.5px]/[1.6] tabular-nums text-muted md:pt-1.5"
+					>
+						<b class="mr-1.5 inline text-[13px] font-medium tracking-[.02em] text-ink md:mr-0 md:block md:text-[22px]">
+							{m}.{String(d).padStart(2, '0')}
+						</b>
+						{y} ({wd})
+					</time>
+					<div>
+						<h2 class="mb-1.5 font-display text-xl/normal font-bold text-balance md:text-[23px]">
+							<a href={postUrl(post)} class="text-ink no-underline hover:text-accent">
+								{post.data.title}
+							</a>
+						</h2>
+						<p class="mb-2.5 max-w-[38em] text-muted">{post.data.description}</p>
+						<div class="flex flex-wrap items-center gap-x-3.5 gap-y-1.5 text-[12.5px] text-muted">
+							<span>約{readMinutes(post)}分で読めます</span>
+							{post.data.tags.map((tag) => (
+								<TagLink tag={tag} current={currentTag} size="sm" />
+							))}
+						</div>
+					</div>
+				</li>
+			);
+		})
+	}
+</ol>

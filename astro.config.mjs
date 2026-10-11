@@ -5,6 +5,8 @@ import sitemap from '@astrojs/sitemap';
 import tailwindcss from '@tailwindcss/vite';
 import { defineConfig, fontProviders } from 'astro/config';
 
+const JAPANESE_SUBSETS = Array.from({ length: 120 }, (_, i) => `[${i}]`);
+
 // https://astro.build/config
 export default defineConfig({
 	site: 'https://ahrimak.github.io',
@@ -28,28 +30,37 @@ export default defineConfig({
 			],
 		},
 	},
+	redirects: {
+		'/blog': '/',
+	},
+	// Google Fonts はビルド時にダウンロードして自前配信する（CSP の font-src を 'self' のままにするため）。
+	// 日本語フォントは unicode-range ごとに "[0]"〜"[119]" の subset に分割されている
 	fonts: [
 		{
-			provider: fontProviders.local(),
-			name: 'Atkinson',
-			cssVariable: '--font-atkinson',
-			fallbacks: ['sans-serif'],
-			options: {
-				variants: [
-					{
-						src: ['./src/assets/fonts/atkinson-regular.woff'],
-						weight: 400,
-						style: 'normal',
-						display: 'swap',
-					},
-					{
-						src: ['./src/assets/fonts/atkinson-bold.woff'],
-						weight: 700,
-						style: 'normal',
-						display: 'swap',
-					},
-				],
-			},
+			provider: fontProviders.google(),
+			name: 'Zen Old Mincho',
+			cssVariable: '--font-zen-old-mincho',
+			weights: [500, 700],
+			styles: ['normal'],
+			subsets: [...JAPANESE_SUBSETS, 'latin'],
+			fallbacks: ['Hiragino Mincho ProN', 'Yu Mincho', 'serif'],
+		},
+		{
+			provider: fontProviders.google(),
+			name: 'Zen Kaku Gothic New',
+			cssVariable: '--font-zen-kaku-gothic-new',
+			weights: [400, 500, 700],
+			styles: ['normal'],
+			subsets: [...JAPANESE_SUBSETS, 'latin'],
+			fallbacks: ['Hiragino Sans', 'Yu Gothic', 'sans-serif'],
+		},
+		{
+			provider: fontProviders.google(),
+			name: 'IBM Plex Mono',
+			cssVariable: '--font-ibm-plex-mono',
+			weights: [400, 500],
+			styles: ['normal'],
+			fallbacks: ['Menlo', 'monospace'],
 		},
 	],
 });
