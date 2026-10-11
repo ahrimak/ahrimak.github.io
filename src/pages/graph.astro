@@ -1,0 +1,473 @@
+---
+import Base from '../layouts/Base.astro';
+import { relatedGraph } from '../lib/graph';
+import { allTags, getPosts } from '../lib/posts';
+
+const posts = await getPosts();
+const graph = relatedGraph(posts);
+const tags = allTags(posts);
+// <script> 内に埋め込むので、タイトルなどに含まれる "<" で要素が閉じられないようにする
+const graphJson = JSON.stringify(graph).replace(/</g, '\\u003c');
+---
+
+<Base title="記事の関連グラフ" description="記事どうしのつながりを、共通のタグと記事間のリンクから描いたグラフ">
+	<div class="mb-2 flex min-h-7 flex-wrap items-center justify-between gap-3 text-[13px] text-muted">
+		<h1 class="m-0 text-[13px] font-normal">
+			記事の関連グラフ（記事 {graph.nodes.length}件・つながり {graph.edges.length}本）
+		</h1>
+	</div>
+	<p class="mb-3 text-[13px]/[1.7] text-muted">
+		共通のタグが多い記事ほど太い線で、本文でリンクしている記事は色付きの線で結んでいます。点を押すと記事を開きます。ドラッグで点や全体を動かし、ホイールで拡大・縮小できます。
+	</p>
+	<div class="mb-3 flex flex-wrap gap-1.5" role="group" aria-label="タグで強調">
+		{
+			tags.map((tag) => (
+				<button
+					type="button"
+					data-tag={tag}
+					aria-pressed="false"
+					class="cursor-pointer rounded-[3px] bg-accent-soft px-2 py-1.5 text-xs leading-none font-medium text-accent hover:bg-accent hover:text-surface aria-pressed:bg-accent aria-pressed:text-surface"
+				>
+					{tag}
+				</button>
+			))
+		}
+	</div>
+	<div class="relative">
+		<canvas
+			id="graph-canvas"
+			role="img"
+			aria-label={`記事 ${graph.nodes.length}件のつながりを表したグラフ`}
+			class="block h-[70vh] min-h-[420px] w-full touch-none rounded-md border border-line bg-surface"
+		></canvas>
+		<!-- カーソルを乗せた記事のタイトル。WebGL では文字を描きにくいので HTML で重ねる -->
+		<div
+			id="graph-label"
+			hidden
+			aria-hidden="true"
+			class="pointer-events-none absolute -translate-y-1/2 rounded-sm border border-line bg-surface/95 px-1.5 py-0.5 text-[13px] font-medium whitespace-nowrap text-ink"
+		>
+		</div>
+	</div>
+	<p id="graph-hover" aria-live="polite" class="mt-2 min-h-[1.7em] text-[13px]/[1.7] text-muted"></p>
+
+	<script type="application/json" id="graph-data" set:html={graphJson} />
+</Base>
+
+<script>
+	import type { GraphEdge, GraphNode } from '../lib/graph';
+
+	interface SimNode extends GraphNode {
+		x: number;
+		y: number;
+		vx: number;
+		vy: number;
+		radius: number;
+		/** つながっている記事の添字 */
+		neighbors: Set<number>;
+		/** ドラッグ中は位置を固定する */
+		pinned: boolean;
+	}
+
+	const { nodes: rawNodes, edges } = JSON.parse(document.getElementById('graph-data')!.textContent!) as {
+		nodes: GraphNode[];
+		edges: GraphEdge[];
+	};
+	const canvas = document.getElementById('graph-canvas') as HTMLCanvasElement;
+	const hoverText = document.getElementById('graph-hover')!;
+	const label = document.getElementById('graph-label')!;
+	const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
+
+	// 初期配置はひまわり状 (黄金角) に並べ、毎回同じ形に落ち着くようにする
+	const nodes: SimNode[] = rawNodes.map((node, i) => {
+		const angle = i * 2.39996;
+		const r = 12 * Math.sqrt(i + 1);
+		return { ...node, x: r * Math.cos(angle), y: r * Math.sin(angle), vx: 0, vy: 0, radius: 3, neighbors: new Set(), pinned: false };
+	});
+	for (const { source, target } of edges) {
+		nodes[source].neighbors.add(target);
+		nodes[target].neighbors.add(source);
+	}
+	for (const node of nodes) node.radius = 2.5 + Math.sqrt(node.neighbors.size) * 0.4;
+
+	// ---- 力学レイアウト: 点どうしは反発し、線で結ばれた点は引き合う ----
+	const REPULSION = 2400;
+	const GRAVITY = 0.02;
+
+	function tick(alpha: number) {
+		for (let i = 0; i < nodes.length; i++) {
+			for (let j = i + 1; j < nodes.length; j++) {
+				const a = nodes[i], b = nodes[j];
+				const dx = b.x - a.x, dy = b.y - a.y;
+				const d2 = Math.max(dx * dx + dy * dy, 25);
+				const f = (REPULSION * alpha) / d2 / Math.sqrt(d2);
+				a.vx -= dx * f; a.vy -= dy * f;
+				b.vx += dx * f; b.vy += dy * f;
+			}
+		}
+		for (const edge of edges) {
+			const a = nodes[edge.source], b = nodes[edge.target];
+			const dx = b.x - a.x, dy = b.y - a.y;
+			const d = Math.max(Math.hypot(dx, dy), 1);
+			// 共通のタグが多いほど、またリンクしているほど強く近く引き合う。
+			// タグが 1 つ重なるだけの組は多いので、弱くしてまとまりが見えるようにする
+			const strength = (edge.linked ? 0.06 : 0) + (edge.sharedTags === 1 ? 0.0015 : 0.012 * edge.sharedTags);
+			const rest = edge.linked ? 50 : 120 / edge.sharedTags;
+			const f = ((d - rest) / d) * strength * alpha;
+			a.vx += dx * f; a.vy += dy * f;
+			b.vx -= dx * f; b.vy -= dy * f;
+		}
+		for (const node of nodes) {
+			node.vx -= node.x * GRAVITY * alpha;
+			node.vy -= node.y * GRAVITY * alpha;
+			node.vx *= 0.6;
+			node.vy *= 0.6;
+			if (!node.pinned) {
+				node.x += node.vx;
+				node.y += node.vy;
+			}
+		}
+	}
+
+	// 最初の表示前に配置を落ち着かせておく (読み込み時に点が飛び回らないように)
+	for (let i = 0; i < 300; i++) tick(1 - i / 300);
+
+	// ---- 表示 (WebGL) ----
+	const view = { scale: 1, x: 0, y: 0 };
+	let hovered: SimNode | null = null;
+	let selectedTag: string | null = null;
+
+	type RGB = [number, number, number];
+	const colorProbe = document.createElement('canvas').getContext('2d')!;
+	/** CSS の色 (配色トークンの値) を 0〜1 の RGB にする */
+	function toRGB(css: string): RGB {
+		colorProbe.fillStyle = '#000';
+		colorProbe.fillStyle = css;
+		const value = String(colorProbe.fillStyle); // "#rrggbb" か "rgba(r, g, b, a)" に正規化される
+		const parts = value.startsWith('#')
+			? [1, 3, 5].map((i) => parseInt(value.slice(i, i + 2), 16))
+			: value.match(/[\d.]+/g)!.slice(0, 3).map(Number);
+		return parts.map((c) => c / 255) as RGB;
+	}
+	function readColors() {
+		const style = getComputedStyle(document.documentElement);
+		const get = (name: string) => toRGB(style.getPropertyValue(name).trim());
+		return { ink: get('--color-ink'), muted: get('--color-muted'), accent: get('--color-accent') };
+	}
+	let colors = readColors();
+
+	// 位置は「ワールド座標 × 拡大率 + 平行移動」で画面上の CSS ピクセルになり、それをクリップ座標に直す
+	const VIEW_UNIFORMS = `
+		uniform vec2 uScale;
+		uniform vec2 uOffset;
+	`;
+	const EDGE_VERTEX = `
+		${VIEW_UNIFORMS}
+		attribute vec2 aPosition;
+		attribute vec4 aColor;
+		varying vec4 vColor;
+		void main() {
+			vColor = aColor;
+			gl_Position = vec4(aPosition * uScale + uOffset, 0.0, 1.0);
+		}
+	`;
+	const EDGE_FRAGMENT = `
+		precision mediump float;
+		varying vec4 vColor;
+		void main() {
+			gl_FragColor = vec4(vColor.rgb * vColor.a, vColor.a);
+		}
+	`;
+	const NODE_VERTEX = `
+		${VIEW_UNIFORMS}
+		attribute vec2 aPosition;
+		attribute float aSize;
+		attribute vec4 aColor;
+		varying vec4 vColor;
+		varying float vSize;
+		void main() {
+			vColor = aColor;
+			vSize = aSize;
+			gl_PointSize = aSize;
+			gl_Position = vec4(aPosition * uScale + uOffset, 0.0, 1.0);
+		}
+	`;
+	// 四角い点を、縁をなめらかにした円として塗る
+	const NODE_FRAGMENT = `
+		precision mediump float;
+		varying vec4 vColor;
+		varying float vSize;
+		void main() {
+			float d = length(gl_PointCoord * 2.0 - 1.0);
+			float a = vColor.a * (1.0 - smoothstep(1.0 - 3.0 / vSize, 1.0, d));
+			if (a <= 0.0) discard;
+			gl_FragColor = vec4(vColor.rgb * a, a);
+		}
+	`;
+
+	interface Layer {
+		program: WebGLProgram;
+		buffer: WebGLBuffer;
+		/** 属性名と要素数。頂点データはこの順に詰める */
+		attributes: [string, number][];
+		stride: number;
+	}
+
+	let gl: WebGLRenderingContext | null = null;
+	let edgeLayer: Layer;
+	let nodeLayer: Layer;
+	let maxPointSize = 64;
+
+	function createLayer(context: WebGLRenderingContext, vertex: string, fragment: string, attributes: [string, number][]): Layer {
+		const compile = (type: number, source: string) => {
+			const shader = context.createShader(type)!;
+			context.shaderSource(shader, source);
+			context.compileShader(shader);
+			if (!context.getShaderParameter(shader, context.COMPILE_STATUS)) throw new Error(context.getShaderInfoLog(shader) ?? '');
+			return shader;
+		};
+		const program = context.createProgram()!;
+		context.attachShader(program, compile(context.VERTEX_SHADER, vertex));
+		context.attachShader(program, compile(context.FRAGMENT_SHADER, fragment));
+		context.linkProgram(program);
+		return { program, buffer: context.createBuffer()!, attributes, stride: attributes.reduce((sum, [, size]) => sum + size, 0) };
+	}
+
+	function initGL() {
+		gl = canvas.getContext('webgl', { antialias: true, premultipliedAlpha: true });
+		if (!gl) return false;
+		edgeLayer = createLayer(gl, EDGE_VERTEX, EDGE_FRAGMENT, [['aPosition', 2], ['aColor', 4]]);
+		nodeLayer = createLayer(gl, NODE_VERTEX, NODE_FRAGMENT, [['aPosition', 2], ['aSize', 1], ['aColor', 4]]);
+		maxPointSize = gl.getParameter(gl.ALIASED_POINT_SIZE_RANGE)[1];
+		gl.enable(gl.BLEND);
+		gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+		gl.clearColor(0, 0, 0, 0);
+		return true;
+	}
+
+	function drawLayer(layer: Layer, data: number[], mode: number) {
+		const context = gl!;
+		context.useProgram(layer.program);
+		context.bindBuffer(context.ARRAY_BUFFER, layer.buffer);
+		context.bufferData(context.ARRAY_BUFFER, new Float32Array(data), context.DYNAMIC_DRAW);
+		let offset = 0;
+		for (const [name, size] of layer.attributes) {
+			const location = context.getAttribLocation(layer.program, name);
+			context.enableVertexAttribArray(location);
+			context.vertexAttribPointer(location, size, context.FLOAT, false, layer.stride * 4, offset * 4);
+			offset += size;
+		}
+		const width = canvas.clientWidth, height = canvas.clientHeight;
+		context.uniform2f(context.getUniformLocation(layer.program, 'uScale'), (2 * view.scale) / width, (-2 * view.scale) / height);
+		context.uniform2f(context.getUniformLocation(layer.program, 'uOffset'), (2 * view.x) / width - 1, 1 - (2 * view.y) / height);
+		context.drawArrays(mode, 0, data.length / layer.stride);
+		for (const [name] of layer.attributes) context.disableVertexAttribArray(context.getAttribLocation(layer.program, name));
+	}
+
+	function fitView() {
+		const xs = nodes.map((n) => n.x), ys = nodes.map((n) => n.y);
+		const minX = Math.min(...xs), maxX = Math.max(...xs), minY = Math.min(...ys), maxY = Math.max(...ys);
+		const width = canvas.clientWidth, height = canvas.clientHeight;
+		view.scale = Math.min(width / (maxX - minX + 60), height / (maxY - minY + 60), 3);
+		view.x = width / 2 - ((minX + maxX) / 2) * view.scale;
+		view.y = height / 2 - ((minY + maxY) / 2) * view.scale;
+	}
+
+	/** 強調する記事。カーソルを乗せた記事とその隣、または選んだタグの記事 */
+	function isFocused(index: number) {
+		if (hovered) {
+			const h = nodes.indexOf(hovered);
+			return index === h || hovered.neighbors.has(index);
+		}
+		if (selectedTag) return nodes[index].tags.includes(selectedTag);
+		return true;
+	}
+
+	function draw() {
+		updateLabel();
+		if (!gl) return;
+		gl.viewport(0, 0, canvas.width, canvas.height);
+		gl.clear(gl.COLOR_BUFFER_BIT);
+		const focusing = hovered !== null || selectedTag !== null;
+
+		// 線は太さを出すため、2 つの三角形でできた細い長方形として描く
+		const edgeData: number[] = [];
+		for (const edge of edges) {
+			const a = nodes[edge.source], b = nodes[edge.target];
+			const focused = !focusing || (isFocused(edge.source) && isFocused(edge.target) && (!hovered || a === hovered || b === hovered));
+			const alpha = focused ? (edge.linked ? 0.9 : 0.1 + 0.15 * edge.sharedTags) : 0.03;
+			const [r, g, bl] = edge.linked ? colors.accent : colors.muted;
+			const halfWidth = (edge.linked ? 1.5 : 0.6 * edge.sharedTags) / 2 / view.scale;
+			const dx = b.x - a.x, dy = b.y - a.y;
+			const length = Math.hypot(dx, dy) || 1;
+			const nx = (-dy / length) * halfWidth, ny = (dx / length) * halfWidth;
+			const corners = [
+				[a.x + nx, a.y + ny], [a.x - nx, a.y - ny], [b.x + nx, b.y + ny],
+				[b.x + nx, b.y + ny], [a.x - nx, a.y - ny], [b.x - nx, b.y - ny],
+			];
+			for (const [x, y] of corners) edgeData.push(x, y, r, g, bl, alpha);
+		}
+		drawLayer(edgeLayer, edgeData, gl.TRIANGLES);
+
+		// カーソルを乗せた点が他の点に隠れないよう、最後に描く
+		const dpr = window.devicePixelRatio || 1;
+		const order = nodes.map((_, i) => i).sort((i, j) => Number(nodes[i] === hovered) - Number(nodes[j] === hovered));
+		const nodeData: number[] = [];
+		for (const i of order) {
+			const node = nodes[i];
+			const [r, g, b] = node === hovered ? colors.ink : colors.accent;
+			const size = Math.min(2 * node.radius * view.scale * dpr + 2, maxPointSize);
+			nodeData.push(node.x, node.y, size, r, g, b, isFocused(i) ? 1 : 0.15);
+		}
+		drawLayer(nodeLayer, nodeData, gl.POINTS);
+	}
+
+	/** カーソルを乗せた記事のタイトルを、点の右に重ねて出す */
+	function updateLabel() {
+		if (!hovered) {
+			label.hidden = true;
+			return;
+		}
+		label.textContent = hovered.title;
+		label.hidden = false;
+		const x = hovered.x * view.scale + view.x + hovered.radius * view.scale + 6;
+		label.style.left = `${Math.max(0, Math.min(x, canvas.clientWidth - label.offsetWidth - 8))}px`;
+		label.style.top = `${hovered.y * view.scale + view.y}px`;
+	}
+
+	function resize() {
+		const dpr = window.devicePixelRatio || 1;
+		canvas.width = Math.round(canvas.clientWidth * dpr);
+		canvas.height = Math.round(canvas.clientHeight * dpr);
+		draw();
+	}
+
+	if (!initGL()) {
+		hoverText.textContent = 'このブラウザでは WebGL が使えないため、グラフを表示できません。';
+	}
+	canvas.addEventListener('webglcontextlost', (event) => event.preventDefault());
+	canvas.addEventListener('webglcontextrestored', () => {
+		initGL();
+		draw();
+	});
+
+	// ---- ドラッグで点を動かしている間だけ、配置を計算し直してアニメーションする ----
+	let alpha = 0;
+	let frame = 0;
+	function reheat() {
+		if (reducedMotion.matches) return draw();
+		alpha = Math.max(alpha, 0.3);
+		if (!frame) frame = requestAnimationFrame(animate);
+	}
+	function animate() {
+		tick(alpha);
+		alpha *= 0.97;
+		draw();
+		frame = alpha > 0.005 ? requestAnimationFrame(animate) : 0;
+	}
+
+	// ---- 操作 ----
+	function toWorld(event: PointerEvent | WheelEvent) {
+		const rect = canvas.getBoundingClientRect();
+		return { x: (event.clientX - rect.left - view.x) / view.scale, y: (event.clientY - rect.top - view.y) / view.scale };
+	}
+	function nodeAt(event: PointerEvent) {
+		const p = toWorld(event);
+		let best: SimNode | null = null;
+		let bestDistance = Infinity;
+		for (const node of nodes) {
+			const d = Math.hypot(node.x - p.x, node.y - p.y);
+			if (d < node.radius + 6 / view.scale && d < bestDistance) {
+				best = node;
+				bestDistance = d;
+			}
+		}
+		return best;
+	}
+	function setHovered(node: SimNode | null) {
+		if (node === hovered) return;
+		hovered = node;
+		canvas.style.cursor = node ? 'pointer' : 'grab';
+		hoverText.textContent = node ? `${node.title}（つながり ${node.neighbors.size}件${node.tags.length ? `・${node.tags.join('、')}` : ''}）` : '';
+		draw();
+	}
+
+	let drag: { node: SimNode | null; startX: number; startY: number; lastX: number; lastY: number; moved: boolean } | null = null;
+
+	canvas.addEventListener('pointerdown', (event) => {
+		const node = nodeAt(event);
+		drag = { node, startX: event.clientX, startY: event.clientY, lastX: event.clientX, lastY: event.clientY, moved: false };
+		if (node) node.pinned = true;
+		canvas.setPointerCapture(event.pointerId);
+		canvas.style.cursor = 'grabbing';
+	});
+	canvas.addEventListener('pointermove', (event) => {
+		if (!drag) return setHovered(nodeAt(event));
+		if (Math.hypot(event.clientX - drag.startX, event.clientY - drag.startY) > 4) drag.moved = true;
+		if (drag.node) {
+			const p = toWorld(event);
+			drag.node.x = p.x;
+			drag.node.y = p.y;
+			reheat();
+		} else {
+			view.x += event.clientX - drag.lastX;
+			view.y += event.clientY - drag.lastY;
+			draw();
+		}
+		drag.lastX = event.clientX;
+		drag.lastY = event.clientY;
+	});
+	canvas.addEventListener('pointerup', () => {
+		if (!drag) return;
+		const { node, moved } = drag;
+		drag = null;
+		if (node) node.pinned = false;
+		canvas.style.cursor = hovered ? 'pointer' : 'grab';
+		if (node && !moved) location.href = node.url;
+	});
+	canvas.addEventListener('pointerleave', () => {
+		if (!drag) setHovered(null);
+	});
+	canvas.addEventListener(
+		'wheel',
+		(event) => {
+			event.preventDefault();
+			const rect = canvas.getBoundingClientRect();
+			const mx = event.clientX - rect.left, my = event.clientY - rect.top;
+			const next = Math.min(Math.max(view.scale * Math.exp(-event.deltaY * 0.0015), 0.2), 8);
+			view.x = mx - ((mx - view.x) * next) / view.scale;
+			view.y = my - ((my - view.y) * next) / view.scale;
+			view.scale = next;
+			draw();
+		},
+		{ passive: false },
+	);
+
+	for (const button of document.querySelectorAll<HTMLButtonElement>('button[data-tag]')) {
+		button.addEventListener('click', () => {
+			selectedTag = selectedTag === button.dataset.tag ? null : button.dataset.tag!;
+			for (const b of document.querySelectorAll('button[data-tag]')) {
+				b.setAttribute('aria-pressed', String(b === button && selectedTag !== null));
+			}
+			draw();
+		});
+	}
+
+	// テーマ (ライト/ダーク) が変わったら線や点の色を塗り直す
+	const repaint = () => {
+		colors = readColors();
+		draw();
+	};
+	new MutationObserver(repaint).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+	matchMedia('(prefers-color-scheme: dark)').addEventListener('change', repaint);
+
+	let fitted = false;
+	new ResizeObserver(() => {
+		if (!fitted) {
+			fitView();
+			fitted = true;
+		}
+		resize();
+	}).observe(canvas);
+	canvas.style.cursor = 'grab';
+</script>
