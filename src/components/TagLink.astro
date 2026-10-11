@@ -1,0 +1,23 @@
+---
+import { tagUrl } from '../lib/posts';
+
+interface Props {
+	tag: string;
+	/** 現在表示中のタグ。押すと絞り込みを解除してトップへ戻る */
+	current?: string;
+	size?: 'md' | 'sm';
+}
+
+const { tag, current, size = 'md' } = Astro.props;
+const active = tag === current;
+---
+
+<a
+	href={active ? '/' : tagUrl(tag)}
+	aria-current={active ? 'page' : undefined}
+	class:list={[
+		'rounded-[3px] font-medium leading-none no-underline',
+		size === 'md' ? 'px-2 py-1.5 text-xs' : 'px-[7px] py-1 text-[11.5px]',
+		active ? 'bg-accent text-surface' : 'bg-accent-soft text-accent hover:bg-accent hover:text-surface',
+	]}>{tag}</a
+>

@@ -1,0 +1,19 @@
+---
+import PostList from '../../components/PostList.astro';
+import Base from '../../layouts/Base.astro';
+import { archiveMonths, getPosts, monthKey, monthLabel } from '../../lib/posts';
+
+export async function getStaticPaths() {
+	const posts = await getPosts();
+	return archiveMonths(posts).map(([month]) => ({
+		params: { month },
+		props: { month, posts: posts.filter((p) => monthKey(p.data.pubDate) === month) },
+	}));
+}
+
+const { month, posts } = Astro.props;
+---
+
+<Base title={monthLabel(month)} currentMonth={month}>
+	<PostList posts={posts} label={monthLabel(month)} />
+</Base>

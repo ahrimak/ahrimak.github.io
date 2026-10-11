@@ -1,0 +1,48 @@
+---
+import type { ImageMetadata } from 'astro';
+import BaseHead from '../components/BaseHead.astro';
+import Sidebar from '../components/Sidebar.astro';
+import { SITE_DESCRIPTION, SITE_TITLE } from '../consts';
+
+interface Props {
+	title?: string;
+	description?: string;
+	image?: ImageMetadata;
+	currentTag?: string;
+	currentMonth?: string;
+}
+
+const {
+	title,
+	description = SITE_DESCRIPTION,
+	image,
+	currentTag,
+	currentMonth,
+} = Astro.props;
+---
+
+<!doctype html>
+<html lang="ja">
+	<head>
+		<BaseHead
+			title={title ? `${title} | ${SITE_TITLE}` : SITE_TITLE}
+			description={description}
+			image={image}
+		/>
+	</head>
+	<body class="px-4 pt-7 pb-12 md:px-5 md:pt-12 md:pb-16">
+		<div
+			class="mx-auto grid max-w-[1040px] grid-cols-[minmax(0,1fr)] gap-8 md:grid-cols-[220px_minmax(0,1fr)] md:gap-16"
+		>
+			<Sidebar currentTag={currentTag} currentMonth={currentMonth} />
+			<main class="min-w-0">
+				<div class="motion-safe:animate-fade">
+					<slot />
+				</div>
+				<footer class="mt-14 text-xs text-muted">
+					&copy; {`${new Date().getFullYear()} ${SITE_TITLE}`}
+				</footer>
+			</main>
+		</div>
+	</body>
+</html>
