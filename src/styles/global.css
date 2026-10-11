@@ -1,5 +1,4 @@
 @import "tailwindcss";
-@plugin "@tailwindcss/typography";
 
 /* 配色とフォントのトークン。ダークモードでは同じ変数を上書きする */
 @theme {
@@ -66,23 +65,64 @@
 	}
 }
 
-/* 記事本文 (Typography の prose) の色をサイトの配色に合わせる。ダークモードはトークンの上書きで追従する */
-@utility prose-site {
-	--tw-prose-body: var(--color-ink);
-	--tw-prose-headings: var(--color-ink);
-	--tw-prose-links: var(--color-accent);
-	--tw-prose-bold: var(--color-ink);
-	--tw-prose-quotes: var(--color-muted);
-	--tw-prose-quote-borders: var(--color-accent);
-	--tw-prose-code: var(--color-ink);
-	--tw-prose-pre-bg: #24292e; /* Prism (GitHub Dark 風) の背景と同じ */
-	--tw-prose-pre-code: #e1e4e8;
-	--tw-prose-hr: var(--color-line);
-	--tw-prose-th-borders: var(--color-line);
-	--tw-prose-td-borders: var(--color-line);
-	--tw-prose-bullets: var(--color-muted);
-	--tw-prose-counters: var(--color-muted);
-	--tw-prose-captions: var(--color-muted);
+/* Markdown から生成される記事本文 */
+.prose {
+	p,
+	ul,
+	ol,
+	pre,
+	table {
+		margin-bottom: 1.4em;
+	}
+	ul {
+		list-style: disc;
+		padding-left: 1.5em;
+	}
+	ol {
+		list-style: decimal;
+		padding-left: 1.5em;
+	}
+	h2,
+	h3,
+	h4 {
+		@apply font-display font-bold;
+		margin: 2em 0 0.6em;
+		line-height: 1.5;
+	}
+	h2 {
+		font-size: 24px;
+	}
+	h3 {
+		font-size: 20px;
+	}
+	h4 {
+		font-size: 17px;
+	}
+	blockquote {
+		@apply my-[1.6em] border-l-2 border-accent py-0.5 pl-[18px] font-display text-muted;
+	}
+	hr {
+		@apply my-10 border-line;
+	}
+	img {
+		@apply rounded-md;
+	}
+	table {
+		@apply w-full text-sm;
+	}
+	th,
+	td {
+		@apply border-b border-line px-2 py-1 text-left;
+	}
+	code {
+		@apply rounded-xs bg-accent-soft px-1.5 py-0.5 font-mono text-[0.88em];
+	}
+	pre {
+		@apply rounded-md p-5 text-sm/relaxed;
+	}
+	pre > code {
+		all: unset;
+	}
 }
 
 /* Prism のシンタックスハイライト（GitHub Dark 風） */
